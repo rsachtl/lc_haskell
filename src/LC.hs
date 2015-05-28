@@ -126,8 +126,7 @@ evaluate e =
 
 asNum :: E -> Maybe Int
 asNum (F a (F b e)) = countComp e a b 0
-asNum (N x) = Nothing
-
+asNum _ = Nothing
 
 countComp :: E -> Int -> Int -> Int -> Maybe Int
 countComp (N x) s z n 
@@ -138,12 +137,23 @@ countComp (A x y) s z n
     | True   = Nothing
 countComp x s z n = Nothing
 
+
+fromNum :: Int -> E
+fromNum n = F 1 $ F 2 $ repeatAppl (N 2) (N 1) n
+
+-- Repeat application of a on e n times
+repeatAppl :: E -> E -> Int -> E
+repeatAppl e a n = iterate (A a) e !! n
+
+
 asBool :: E -> Maybe Bool
 asBool (F a (F b (N x))) 
     | x == a = Just True
     | x == b = Just False
     | True   = Nothing 
 asBoolt x = Nothing
+
+
 
 
 fI :: E
