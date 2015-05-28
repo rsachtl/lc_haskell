@@ -1,5 +1,7 @@
 import Control.Monad
-import Data.Set 
+import Data.Set as Set
+import Data.Map as Map
+import Data.List as List
 
 data E =  N Int |
           F Int E |
@@ -17,19 +19,19 @@ bound e b = not $ free e b
 
 -- Free variables in a given expression
 fv :: E -> Set Int
-fv (N a)   = singleton a
-fv (F a e) = (fv e) \\ singleton a
-fv (A e f) = union (fv e) (fv f)
+fv (N a)   = Set.singleton a
+fv (F a e) = (fv e) Set.\\ Set.singleton a
+fv (A e f) = Set.union (fv e) (fv f)
 
 -- Bound variables in a given expression
 bv :: E -> Set Int
-bv (N a)   = empty
-bv (F a e) = union (bv e) (singleton a)
-bv (A e f) = union (bv e) (bv f)
+bv (N a)   = Set.empty
+bv (F a e) = Set.union (bv e) (Set.singleton a)
+bv (A e f) = Set.union (bv e) (bv f)
 
 -- get all variables in a given expression
 vars :: E -> Set Int
-vars e = union (bv e) (fv e)
+vars e = Set.union (bv e) (fv e)
 
 -- Rename a variable in a given expression
 -- Does not rename bound variables 
@@ -61,16 +63,66 @@ substE (F a f) b r
     | a == b = F a f
     | a /= b = F y (substE f' b r')
         where 
-            y  = (+1) . findMax $ vars f
+            y  = (+1) . Set.findMax $ vars f
             r' = changeIndicesBy (+y) r
             f' = rename f a y     
 
+alphaEq :: E -> E -> Bool
+alphaEq e1 e2 = case (varPairStructEq e1 e2 Map.empty Set.empty Set.empty) of
+    (Just m) -> renamingPossible m
+    Nothing  -> False
+varPairStructEq :: E -> E -> Map Int Int -> Set Int -> Set Int -> Maybe (Map Int Int)
+varPairStructEq (N a)   (N b)   m v1 v2 = case (Set.member a v1, Set.member b v2) of
+    (True, True)  -> Just m
+    (False,False) -> case (Map.lookup a m) of
+        (Just x) -> if (x == b)
+            then Just $ m
+            else Just $ Map.insert a b m
+        Nothing  -> Just $ Map.insert a b m
+    _ -> Nothing
+varPairStructEq (F a e) (F b f) m v1 v2 = 
+    varPairStructEq e f m (Set.insert a v1) (Set.insert b v2)
+varPairStructEq (A e f) (A g h) m v1 v2 =
+    unifyVarPairs (varPairStructEq e g m v1 v2) (varPairStructEq f h m v1 v2)    
+varPairStructEq _ _ _ _ _ = Nothing    
 
+unifyVarPairs :: Maybe (Map Int Int) -> Maybe (Map Int Int) -> Maybe (Map Int Int)
+unityVarPairs (Just m1) (Just m2) = 
+    let
+        unionLeft  = Map.union m1 m2
+        unionRight = Map.union m2 m1
+        diff       = Map.difference unionRight unionLeft
+    in 
+        if (diff == Map.empty)
+            then Just unionLeft
+            else Nothing    
+unifyVarPairs m1 m2 = Nothing 
+
+renamingPossible :: Map Int Int -> Bool
+renamingPossible m = 
+    let
+        ks       = Map.keys m
+        es       = Map.elems m
+        sameSize = length ks == length es
+        unique   = length es == (Set.size $ Set.fromList es)
+    in 
+        sameSize && unique      
+
+-- perform one reduction step
 apply :: E -> E
-apply (A (F a e) x) = undefined
-apply e = undefined
+apply (A (F a e) x) = substE e a x
+apply e = e
 
 
+-- 
+evaluate :: E -> E
+evaluate e =
+    let 
+        e' = apply e
+    in
+        if (alphaEq e e') 
+            then e
+            else evaluate e'    
 
 asNum :: E -> Maybe Int
 asNum (F a (F b e)) = countComp e a b 0
