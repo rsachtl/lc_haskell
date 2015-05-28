@@ -1,41 +1,77 @@
 import Control.Monad
+import Data.Set 
 
 data E =  N Int |
           F Int E |
           A E E deriving (Show, Eq)
 
+-- True if b is free in a given expression
 free :: E -> Int -> Bool
 free (N a)   b = a /= b
 free (F a e) b = a /= b && free e b
 free (A e f) b = free e b || free f b
 
+-- True if b is bound in e
 bound :: E -> Int -> Bool
 bound e b = not $ free e b
 
-{-}
-fv :: E -> [Int]
-fv (N a)   = [a]
-fv (F a e) = undefined
-fv (A e f) = undefined
+-- Free variables in a given expression
+fv :: E -> Set Int
+fv (N a)   = singleton a
+fv (F a e) = (fv e) \\ singleton a
+fv (A e f) = union (fv e) (fv f)
 
-bv :: E -> [Int]
-bv (N a)   = []
-bv (F a e) = [a] ++ (bv e)
-bv (A e f) = (bv e) ++ (bv f)
+-- Bound variables in a given expression
+bv :: E -> Set Int
+bv (N a)   = empty
+bv (F a e) = union (bv e) (singleton a)
+bv (A e f) = union (bv e) (bv f)
 
-subst :: E -> Int -> Int -> Maybe E
-subst (N a)   a c = Just $ N c
-subst (N a)   b c = Just $ N b
-subst (F a e) b c = undefined
-subst (A e f) b c = undefined
+-- get all variables in a given expression
+vars :: E -> Set Int
+vars e = union (bv e) (fv e)
 
+-- Rename a variable in a given expression
+-- Does not rename bound variables 
+rename :: E -> Int -> Int -> E
+rename (N a) b c 
+    | a == b = N c
+    | True   = N a
+rename (F a e) b c
+    | a == b = F a e
+    | True   = F a $ rename e b c
+rename (A e f) b c = A (rename e b c) (rename f b c)       
+
+-- hange all indices by a given function
+-- Does not guarantee not changing bounding
+changeIndicesBy :: (Int -> Int) -> E -> E
+changeIndicesBy f (N a)   = N $ f a
+changeIndicesBy f (F a e) = F (f a) $ changeIndicesBy f e
+changeIndicesBy f (A e g) = 
+    A (changeIndicesBy f e) (changeIndicesBy f g)
+
+-- substitute a given variable in an expression with another expression
+-- TODO: use more efficient renaming of variables
 substE :: E -> Int -> E -> E
-substE = undefined
+substE (N a) b r 
+    | a == b = r
+    | a /= b = (N a)
+substE (A x y) b r = A (substE x b r) (substE y b r)
+substE (F a f) b r 
+    | a == b = F a f
+    | a /= b = F y (substE f' b r')
+        where 
+            y  = (+1) . findMax $ vars f
+            r' = changeIndicesBy (+y) r
+            f' = rename f a y     
+
 
 apply :: E -> E
 apply (A (F a e) x) = undefined
 apply e = undefined
--}
+
+
+
 asNum :: E -> Maybe Int
 asNum (F a (F b e)) = countComp e a b 0
 asNum (N x) = Nothing
