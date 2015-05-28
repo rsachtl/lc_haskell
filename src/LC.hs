@@ -128,7 +128,7 @@ reduce (A e f) = evaluate $ A e' f'
     where
         e' = reduce e
         f' = reduce f
-reduce (F a e) = reduce e
+reduce (F a e) = F a $ reduce e
 reduce e = e        
 
 
