@@ -83,8 +83,7 @@ substE (F a f) b r = if (a == b)
                 (False,False,False, True,_,_) -> maxR + abs minF + 1
                 (False,False,False,False,_,_) -> abs minR + abs minF + 1
                 _ -> 0 
-            a' = a + delta   
-            --f' = changeIndicesBy (+delta) f    
+            a' = a + delta      
             f' = rename f a a'
              
 
