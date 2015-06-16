@@ -61,6 +61,21 @@ reduce (A (L m) n) = replace dec n 0
         dec = decFree bx 0         
 reduce e = e
 
+-- check if two expressions are alpha-equivalent
+alphaEq :: E -> E -> Bool
+alphaEq = (==)
+
+
+
+-- perform beta-reduction as long as possible
+reduceFull :: E -> E
+reduceFull e =
+    let 
+        e' = reduce e
+    in
+        if (alphaEq e e')
+            then e
+            else reduceFull e'
 
 testE1 :: E
 testE1 = (L $ A (A (V 4) (V 2)) (L $ A (V 1) (V 3)))
