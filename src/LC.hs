@@ -1,3 +1,5 @@
+module LC where
+
 import Control.Monad
 import Data.Set as Set
 import Data.Map as Map
@@ -53,70 +55,51 @@ changeIndicesBy f (F a e) = F (f a) $ changeIndicesBy f e
 changeIndicesBy f (A e g) = 
     A (changeIndicesBy f e) (changeIndicesBy f g)
 
--- substitute a given variable in an expression with another expression
--- TODO: use more efficient renaming of variables
+
 substE :: E -> Int -> E -> E
-substE (N a) b r 
-    | a == b = r
-    | a /= b = (N a)
-substE (A x y) b r = A (substE x b r) (substE y b r)
-substE (F a f) b r 
-    | a == b = F a f
-    | a /= b = F y (substE f' b r')
-        where 
-            y  = (+1) . Set.findMax $ vars f
-            r' = changeIndicesBy (+y) r
-            f' = rename f a y     
-
+substE (N a) b r = if (a == b) then r
+                               else (N a)
+substE (A e f) b r = A (substE e b r) (substE f b r)
+substE (F a f) b r = if (a == b)
+    then F a f
+    else F a' $ substE f' b r
+        where
+            vR = vars r
+            (minR,maxR) = if (vR == Set.empty)
+                    then (0,0)
+                    else (Set.findMin vR, Set.findMax vR)
+            vF = vars f
+            (minF,maxF) = if (vF == Set.empty)
+                    then (0,0)
+                    else (Set.findMin vF, Set.findMax vF)
+            fger = minF >= maxR
+            rgef = minR >= maxF
+            delta = case (minF > 0, maxF > 0, minR > 0, maxR > 0, fger, rgef) of
+                (_,_,_,_,True,_) -> 0
+                (_,_,_,_,_,True) -> 0
+                ( True,    _, True,    _,_,_) -> maxR + 1
+                ( True,    _,False, True,_,_) -> maxR + 1
+                (False, True, True,    _,_,_) -> maxR + abs minF + 1
+                (False,False,False, True,_,_) -> maxR + abs minF + 1
+                (False,False,False,False,_,_) -> abs minR + abs minF + 1
+                _ -> 0 
+            a' = a + delta      
+            f' = rename f a a'
+             
+-- check whether the given expressions are alpha-equivalent
 alphaEq :: E -> E -> Bool
-alphaEq e1 e2 = case (varPairStructEq e1 e2 Map.empty Set.empty Set.empty) of
-    (Just m) -> renamingPossible m
-    Nothing  -> False
+alphaEq e f = structEq e f Map.empty
 
-varPairStructEq :: E -> E -> Map Int Int -> Set Int -> Set Int -> Maybe (Map Int Int)
-varPairStructEq (N a)   (N b)   m v1 v2 = case (Set.member a v1, Set.member b v2) of
-    (True, True)  -> Just m
-    (False,False) -> case (Map.lookup a m) of
-        (Just x) -> if (x == b)
-            then Just $ m
-            else Nothing
-        Nothing  -> Just $ Map.insert a b m
-    _ -> Nothing
-varPairStructEq (F a e) (F b f) m v1 v2 = 
-    varPairStructEq e f m (Set.insert a v1) (Set.insert b v2)
-varPairStructEq (A e f) (A g h) m v1 v2 =
-    let 
-        pairsLeft  = (varPairStructEq e g m v1 v2)
-        pairsRight = (varPairStructEq f h m v1 v2)  
-        mLeft      = fromJust pairsLeft
-        mRight     = fromJust pairsRight  
-        interPairs = Map.intersection mLeft mRight
-        es         = Map.elems interPairs
-        unique     = length es == (Set.size $ Set.fromList es) 
-    in     
-        if (isJust pairsLeft && isJust pairsRight && unique)
-            then Just $ Map.union mLeft mRight
-            else Nothing    
-varPairStructEq _ _ _ _ _ = Nothing    
+structEq :: E -> E -> Map Int Int -> Bool
+structEq (N x) (N y) bvs = case (Map.lookup x bvs) of
+    (Just z) -> y == z
+    Nothing  -> x == y
+structEq (A e1 f1) (A e2 f2) bvs = 
+    structEq e1 e2 bvs && structEq f1 f2 bvs
+structEq (F a1 e1) (F a2 e2) bvs =
+    structEq e1 e2 $ Map.insert a1 a2 bvs 
+structEq _ _ _ = False
 
-unifyVarPairs :: Maybe (Map Int Int) -> Maybe (Map Int Int) -> Maybe (Map Int Int)
-unityVarPairs (Just m1) (Just m2) = 
-    let
-        unionLeft  = Map.union m1 m2
-        unionRight = Map.union m2 m1
-        diff       = Map.difference unionRight unionLeft
-    in 
-        if (diff == Map.empty)
-            then Just unionLeft
-            else Nothing    
-unifyVarPairs m1 m2 = Nothing 
-
-renamingPossible :: Map Int Int -> Bool
-renamingPossible m = 
-    let
-        es       = Map.elems m
-    in 
-        length es == (Set.size $ Set.fromList es)    
 
 -- perform one reduction step
 apply :: E -> E
@@ -129,7 +112,16 @@ reduce (A e f) = evaluate $ A e' f'
         e' = reduce e
         f' = reduce f
 reduce (F a e) = F a $ reduce e
-reduce e = e        
+reduce e = e    
+
+reduceFull :: E -> E
+reduceFull e =
+    let 
+        e' = reduce e
+    in
+        if (alphaEq e e')
+            then e
+            else reduceFull e'    
 
 
 -- reduce as long as
@@ -195,6 +187,12 @@ fOr = F 1 $ F 2 $ A (A (N 1) fT) $ N 2
 fS :: E
 fS = F 1 $ F 2 $ F 3 $ A (N 2) $ A (A (N 1) (N 2)) $ N 3
 
+fS' :: E
+fS' = F 2 $ F 3 $ A (N 2) $ A (A (N 1) (N 2)) $ N 3
+
+fS'' :: E 
+fS'' = F 3 $ A (N 2) $ A (A (N 1) (N 2)) $ N 3
+
 fLeq :: E
 fLeq = F 1 $ A (A (A (N 1) fF) fNot) fF
 
@@ -210,6 +208,9 @@ isPair x = False
 
 fGenPair :: E
 fGenPair = F 1 $ F 2 $ A (A (N 1) (A fS (A (N 1) fT))) $ A (N 1) fT
+
+fMul :: E
+fMul = F 1 $ F 2 $ F 3 $ A (N 1) (A (N 2) (N 3))
 
 
 par :: String -> String
