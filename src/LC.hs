@@ -86,56 +86,20 @@ substE (F a f) b r = if (a == b)
             a' = a + delta      
             f' = rename f a a'
              
-
+-- check whether the given expressions are alpha-equivalent
 alphaEq :: E -> E -> Bool
-alphaEq e1 e2 = case (varPairStructEq e1 e2 Map.empty Set.empty Set.empty) of
-    (Just m) -> renamingPossible m
-    Nothing  -> False
+alphaEq e f = structEq e f Map.empty
 
-varPairStructEq :: E -> E -> Map Int Int -> Set Int -> Set Int -> Maybe (Map Int Int)
-varPairStructEq (N a)   (N b)   m v1 v2 = case (Set.member a v1, Set.member b v2) of
-    (True, True)  -> Just m
-    (False,False) -> case (Map.lookup a m) of
-        (Just x) -> if (x == b)
-            then Just $ m
-            else Nothing
-        Nothing  -> Just $ Map.insert a b m
-    _ -> Nothing
-varPairStructEq (F a e) (F b f) m v1 v2 = 
-    varPairStructEq e f m (Set.insert a v1) (Set.insert b v2)
-varPairStructEq (A e f) (A g h) m v1 v2 =
-    let 
-        pairsLeft  = (varPairStructEq e g m v1 v2)
-        pairsRight = (varPairStructEq f h m v1 v2)  
-        mLeft      = fromJust pairsLeft
-        mRight     = fromJust pairsRight  
-        interPairs = Map.intersection mLeft mRight
-        es         = Map.elems interPairs
-        unique     = length es == (Set.size $ Set.fromList es) 
-    in     
-        if (isJust pairsLeft && isJust pairsRight && unique)
-            then Just $ Map.union mLeft mRight
-            else Nothing    
-varPairStructEq _ _ _ _ _ = Nothing    
+structEq :: E -> E -> Map Int Int -> Bool
+structEq (N x) (N y) bvs = case (Map.lookup x bvs) of
+    (Just z) -> y == z
+    Nothing  -> x == y
+structEq (A e1 f1) (A e2 f2) bvs = 
+    structEq e1 e2 bvs && structEq f1 f2 bvs
+structEq (F a1 e1) (F a2 e2) bvs =
+    structEq e1 e2 $ Map.insert a1 a2 bvs 
+structEq _ _ _ = False
 
-unifyVarPairs :: Maybe (Map Int Int) -> Maybe (Map Int Int) -> Maybe (Map Int Int)
-unityVarPairs (Just m1) (Just m2) = 
-    let
-        unionLeft  = Map.union m1 m2
-        unionRight = Map.union m2 m1
-        diff       = Map.difference unionRight unionLeft
-    in 
-        if (diff == Map.empty)
-            then Just unionLeft
-            else Nothing    
-unifyVarPairs m1 m2 = Nothing 
-
-renamingPossible :: Map Int Int -> Bool
-renamingPossible m = 
-    let
-        es       = Map.elems m
-    in 
-        length es == (Set.size $ Set.fromList es)    
 
 -- perform one reduction step
 apply :: E -> E
