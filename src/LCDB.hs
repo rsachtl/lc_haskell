@@ -17,6 +17,11 @@ data SE =  SV Int
          | B    -- Box for Replacement
             deriving (Eq, Show)
 
+maxScope :: E -> Int -> Int
+maxScope (V x)   n = n
+maxScope (A e f) n = max (maxScope e n) (maxScope f n)
+maxScope (L e)   n = maxScope e (n+1)
+
 -- mark all vars in the epression that are bound by the lambda
 -- at distance d as Boxes 
 box :: E -> Int -> SE
