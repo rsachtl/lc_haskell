@@ -47,7 +47,7 @@ rename (F a e) b c
     | True   = F a $ rename e b c
 rename (A e f) b c = A (rename e b c) (rename f b c)       
 
--- hange all indices by a given function
+-- change all indices by a given function
 -- Does not guarantee not changing bounding
 changeIndicesBy :: (Int -> Int) -> E -> E
 changeIndicesBy f (N a)   = N $ f a
@@ -55,7 +55,7 @@ changeIndicesBy f (F a e) = F (f a) $ changeIndicesBy f e
 changeIndicesBy f (A e g) = 
     A (changeIndicesBy f e) (changeIndicesBy f g)
 
-
+-- Substitute var b by expression r in a given expression
 substE :: E -> Int -> E -> E
 substE (N a) b r = if (a == b) then r
                                else (N a)
@@ -65,25 +65,15 @@ substE (F a f) b r = if (a == b)
     else F a' $ substE f' b r
         where
             vR = vars r
-            (minR,maxR) = if (vR == Set.empty)
-                    then (0,0)
-                    else (Set.findMin vR, Set.findMax vR)
+            maxR = if (vR == Set.empty)
+                    then 0
+                    else Set.findMax vR
             vF = vars f
-            (minF,maxF) = if (vF == Set.empty)
-                    then (0,0)
-                    else (Set.findMin vF, Set.findMax vF)
-            fger = minF >= maxR
-            rgef = minR >= maxF
-            delta = case (minF > 0, maxF > 0, minR > 0, maxR > 0, fger, rgef) of
-                (_,_,_,_,True,_) -> 0
-                (_,_,_,_,_,True) -> 0
-                ( True,    _, True,    _,_,_) -> maxR + 1
-                ( True,    _,False, True,_,_) -> maxR + 1
-                (False, True, True,    _,_,_) -> maxR + abs minF + 1
-                (False,False,False, True,_,_) -> maxR + abs minF + 1
-                (False,False,False,False,_,_) -> abs minR + abs minF + 1
-                _ -> 0 
-            a' = a + delta      
+            maxF = if (vF == Set.empty)
+                    then 0
+                    else Set.findMax vF
+            delta' = (+1) $ max (abs maxF) (abs maxR)
+            a' = a + delta'      
             f' = rename f a a'
              
 -- check whether the given expressions are alpha-equivalent
